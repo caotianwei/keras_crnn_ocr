@@ -3,6 +3,7 @@ from keras.layers import Flatten, BatchNormalization, Permute, TimeDistributed, 
 from keras.models import Model
 
 rnnunit = 256
+
 from keras import backend as K
 
 from keras.layers import Lambda
