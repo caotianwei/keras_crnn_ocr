@@ -1,13 +1,16 @@
 from keras.layers import Input, Conv2D, MaxPooling2D, ZeroPadding2D
 from keras.layers import Flatten, BatchNormalization, Permute, TimeDistributed, Dense, Bidirectional, GRU
 from keras.models import Model
+import numpy as np
+from config.train_settings import EPOCHES
 
 rnnunit = 256
 
 from keras import backend as K
 
 from keras.layers import Lambda
-from keras.optimizers import SGD
+from keras.optimizers import SGD, adadelta
+from config.keys import alphabet
 
 
 def ctc_lambda_func(args):
@@ -57,3 +60,47 @@ def get_model(height, nclass):
     model.summary()
 
     return model, basemodel
+
+
+def decode(pred, characters=alphabet):
+    charactersS = characters + u' '
+    t = pred.argmax(axis=2)[0]
+    length = len(t)
+    char_list = []
+    n = len(characters)
+    for i in range(length):
+        if t[i] != n and (not (i > 0 and t[i - 1] == t[i])):
+            char_list.append(charactersS[t[i]])
+    return u''.join(char_list)
+
+
+def predict(model, xs):
+    labels = []
+    for x in xs:
+        y = model.predict(np.array([x]))
+        words = decode(y[:, 2:, :])
+        labels.append(words)
+    return labels
+
+
+def train(model, xs, ys, labels):
+    error_set = set()
+    for i in range(EPOCHES):
+        batch = 0
+        for (x, y, label) in zip(xs, ys, labels):
+            input_len = int(x.shape[1] / 4 - 2)
+            label_len = len(y)
+            X, Y = np.array([x, x]), np.array([y, y])
+            X_,Y_  = [X, Y, np.ones(2) * input_len, np.ones(2) * label_len], np.ones(2)
+
+            try:
+                model.train_on_batch(X_, Y_)
+                loss = model.evaluate(X_, Y_)
+                print("step-{}, loss-{}, batch-{}".format(i, loss, batch))
+            except:
+                error_set.add('error, label-{}, batch-{}'.format(batch, label))
+
+            batch += 1
+
+    for e in error_set:
+        print(e)
